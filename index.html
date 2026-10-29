@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#171327">
+<meta name="description" content="Private picture and video vault">
+<title>Private Vault</title>
+
+<link rel="manifest" href="manifest.json">
+
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#11101c;color:#fff;font-family:system-ui,sans-serif}
+button,input{font:inherit}
+button{cursor:pointer;border:0}
+.hidden{display:none!important}
+#lock{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:22px;text-align:center;background:radial-gradient(circle at top,#493078,#11101c 65%)}
+.lockbox{width:100%;max-width:380px;background:#201d30;padding:25px;border-radius:24px}
+.logo{font-size:55px;margin-bottom:12px}
+h1{font-size:26px;margin:8px 0}
+.muted{color:#aaa5c1;font-size:13px;line-height:1.6}
+input{width:100%;background:#302b43;color:white;border:1px solid #514766;border-radius:12px;padding:13px;margin:8px 0;outline:none}
+button.primary{background:#8959ee;color:white;border-radius:12px;padding:13px;width:100%;font-weight:bold}
+header{padding:16px;display:flex;justify-content:space-between;align-items:center;background:#1b1829;border-bottom:1px solid #302b43;position:sticky;top:0;z-index:4}
+header h2{font-size:18px;margin:0}
+header small{color:#aaa5c1}
+.icon{background:#302b43;color:white;border-radius:12px;padding:11px}
+main{padding:16px;max-width:850px;margin:auto;padding-bottom:100px}
+.hero{background:linear-gradient(135deg,#7042d2,#35245d);padding:22px;border-radius:20px}
+.stats{display:flex;gap:10px;margin-top:20px}
+.stat{flex:1;background:#ffffff17;border-radius:12px;padding:12px 4px;text-align:center}
+.stat strong{display:block;font-size:22px}
+.stat small{font-size:11px}
+h3{margin-top:24px}
+.toolbar{display:flex;gap:8px}
+.toolbar input{min-width:0}
+.filters{display:flex;gap:8px;overflow:auto;margin:12px 0}
+.filters button{background:#282439;color:#ccc;padding:10px 15px;border-radius:20px;white-space:nowrap}
+.filters button.active{background:#8959ee;color:white}
+.gallery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.card{background:#201d30;border-radius:14px;overflow:hidden;min-width:0}
+.preview{height:150px;background:#302b43;display:grid;place-items:center}
+.preview img{width:100%;height:100%;object-fit:cover}
+.playicon{font-size:40px}
+.details{padding:10px}
+.filename{font-size:12px;overflow-wrap:anywhere;margin-bottom:8px}
+.actions{display:flex;gap:5px}
+.actions button{flex:1;padding:8px 3px;border-radius:8px;background:#383149;color:white;font-size:11px}
+.actions .del{background:#792c3c}
+.empty{grid-column:1/-1;text-align:center;padding:40px 15px;background:#201d30;border-radius:15px;color:#aaa5c1}
+.settings{background:#201d30;border-radius:16px;padding:16px;margin:14px 0}
+.settings p{color:#aaa5c1;font-size:13px;line-height:1.6}
+.secondary{width:100%;background:#383149;color:white;padding:12px;border-radius:10px;margin-top:8px}
+.danger{width:100%;background:#792c3c;color:white;padding:12px;border-radius:10px;margin-top:8px}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;justify-content:space-around;background:#201d30;border-top:1px solid #393249;padding:12px 5px calc(12px + env(safe-area-inset-bottom));z-index:5}
+nav button{background:none;color:#aaa5c1;font-size:11px}
+nav button span{display:block;font-size:21px;margin-bottom:4px}
+nav button.active{color:#c5b0ff}
+.fab{position:fixed;bottom:84px;right:20px;width:58px;height:58px;border-radius:20px;background:#8959ee;color:white;font-size:32px;z-index:6}
+#viewer{position:fixed;inset:0;background:#000e;z-index:20;display:flex;align-items:center;justify-content:center;padding:14px}
+.viewerbox{width:100%;max-width:650px;background:#201d30;padding:15px;border-radius:16px;max-height:90vh;overflow:auto}
+.viewerbox img,.viewerbox video{width:100%;max-height:72vh;object-fit:contain;background:#080810}
+#toast{position:fixed;bottom:90px;left:15px;right:15px;background:#493078;padding:12px;border-radius:12px;text-align:center;z-index:30;font-size:13px}
+@media(min-width:600px){.gallery{grid-template-columns:repeat(3,minmax(0,1fr))}.preview{height:190px}}
+</style>
+</head>
+<body>
+
+<section id="lock">
+ <div class="lockbox">
+  <div class="logo">🔐</div>
+  <h1>Private Vault</h1>
+  <p class="muted" id="lockText">Your pictures. Your videos. Your privacy.</p>
+  <form id="pinForm">
+   <input id="pin" type="password" inputmode="numeric" maxlength="12" placeholder="Enter or create PIN" required>
+   <button class="primary" id="pinButton">Open Vault</button>
+  </form>
+  <p class="muted" id="lockMessage"></p>
+ </div>
+</section>
+
+<section id="app" class="hidden">
+<header>
+ <div><h2>🔐 Private Vault</h2><small>Pictures & Videos</small></div>
+ <button class="icon" id="lockButton">🔒 Lock</button>
+</header>
+
+<main>
+ <section id="home">
+  <div class="hero">
+   <h2>Your private collection ✨</h2>
+   <p class="muted">Keep your pictures and videos together.</p>
+   <div class="stats">
+    <div class="stat"><strong id="total">0</strong><small>Total files</small></div>
+    <div class="stat"><strong id="pictures">0</strong><small>Pictures</small></div>
+    <div class="stat"><strong id="videos">0</strong><small>Videos</small></div>
+   </div>
+  </div>
+  <h3>Recently added</h3>
+  <div class="gallery" id="recent"></div>
+ </section>
+
+ <section id="galleryPage" class="hidden">
+  <h2>My Gallery</h2>
+  <div class="toolbar"><input id="search" placeholder="Search pictures or videos..."></div>
+  <div class="filters">
+   <button class="active" data-filter="all">All</button>
+   <button data-filter="image">Pictures</button>
+   <button data-filter="video">Videos</button>
+  </div>
+  <div class="gallery" id="gallery"></div>
+ </section>
+
+ <section id="settings" class="hidden">
+  <h2>Settings ⚙️</h2>
+  <div class="settings">
+   <h3>Change PIN</h3>
+   <input id="oldPin" type="password" inputmode="numeric" maxlength="12" placeholder="Current PIN">
+   <input id="newPin" type="password" inputmode="numeric" maxlength="12" placeholder="New PIN (4–12 digits)">
+   <input id="confirmPin" type="password" inputmode="numeric" maxlength="12" placeholder="Confirm new PIN">
+   <button class="primary" id="changePin">Save New PIN</button>
+  </div>
+
+  <div class="settings">
+   <h3>Backup and Restore</h3>
+   <p>Backups contain your media without encryption. Keep backup files private. Restoring replaces the current gallery.</p>
+   <button class="primary" id="export">Export Backup</button>
+   <button class="secondary" id="restore">Restore Backup</button>
+   <input class="hidden" type="file" id="backupFile" accept=".json,application/json">
+  </div>
+
+  <div class="settings">
+   <h3>Storage</h3>
+   <p id="storage">Browser storage is used for your media.</p>
+  </div>
+
+  <div class="settings">
+   <h3>Delete all media</h3>
+   <p>This permanently removes all media stored in this vault.</p>
+   <button class="danger" id="deleteAll">Delete Everything</button>
+  </div>
+
+  <div class="settings">
+   <h3>About Private Vault</h3>
+   <p>Chrome-installable web app. Version 1.0.</p>
+  </div>
+ </section>
+</main>
+
+<nav>
+ <button class="active" data-page="home"><span>🏠</span>Home</button>
+ <button data-page="galleryPage"><span>🖼️</span>Gallery</button>
+ <button data-page="settings"><span>⚙️</span>Settings</button>
+</nav>
+
+<button class="fab" id="add">+</button>
+<input class="hidden" type="file" id="mediaFiles" accept="image/*,video/*" multiple>
+</section>
+
+<div id="viewer" class="hidden">
+ <div class="viewerbox">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+   <strong id="viewerName">Preview</strong>
+   <button class="icon" id="closeViewer">✕</button>
+  </div>
+  <div id="viewerContent"></div>
+ </div>
+</div>
+
+<div id="toast" class="hidden"></div>
+
+<script>
+"use strict";
+
+const DB="PrivateVaultChromeDB";
+const STORE="media";
+const PINKEY="privateVaultPinHash";
+const SALTKEY="privateVaultPinSalt";
+let database;
+let activePage="home";
+let filter="all";
+let objectUrls=[];
+let unlocked=false;
+let toastTimer;
+
+const $=id=>document.getElementById(id);
+
+function toast(message){
+ $("toast").textContent=message;
+ $("toast").classList.remove("hidden");
+ clearTimeout(toastTimer);
+ toastTimer=setTimeout(()=>$("toast").classList.add("hidden"),3000);
+}
+
+function makeURL(blob){
+ const url=URL.createObjectURL(blob);
+ objectUrls.push(url);
+ return url;
+}
+
+function clearURLs(){
+ objectUrls.forEach(URL.revokeObjectURL);
+ objectUrls=[];
+}
+
+function openDB(){
+ return new Promise((resolve,reject)=>{
+  const req=indexedDB.open(DB,1);
+  req.onupgradeneeded=()=>{
+   const d=req.result;
+   if(!d.objectStoreNames.contains(STORE)){
+    d.createObjectStore(STORE,{keyPath:"id",autoIncrement:true});
+   }
+  };
+  req.onsuccess=()=>{database=req.result;resolve(database)};
+  req.onerror=()=>reject(req.error);
+ });
+}
+
+function getAll(){
+ return new Promise((resolve,reject)=>{
+  const req=database.transaction(STORE,"readonly").objectStore(STORE).getAll();
+  req.onsuccess=()=>resolve(req.result||[]);
+  req.onerror=()=>reject(req.error);
+ });
+}
+
+function addRecord(record){
+ return new Promise((resolve,reject)=>{
+  const tx=database.transaction(STORE,"readwrite");
+  tx.objectStore(STORE).add(record);
+  tx.oncomplete=resolve;
+  tx.onerror=()=>reject(tx.error);
+ });
+}
+
+function deleteRecord(id){
+ return new Promise((resolve,reject)=>{
+  const tx=database.transaction(STORE,"readwrite");
+  tx.objectStore(STORE).delete(id);
+  tx.oncomplete=resolve;
+  tx.onerror=()=>reject(tx.error);
+ });
+}
+
+function savePin(pin){
+ localStorage.setItem(PINKEY,pin);
+}
+
+function validPin(pin){
+ return /^\d{4,12}$/.test(pin);
+}
+
+async function init(){
+ try{
+  await openDB();
+  if(localStorage.getItem(PINKEY)){
+   $("lockText").textContent="Enter your PIN to open the vault.";
+   $("pinButton").textContent="Unlock Vault";
+  }else{
+   $("lockText").textContent="Create a PIN to start your new vault.";
+   $("pinButton").textContent="Create Vault";
+  }
+ }catch(e){
+  $("lockMessage").textContent="Could not open browser storage.";
+  $("pinButton").disabled=true;
+ }
+}
+
+$("pinForm").addEventListener("submit",async e=>{
+ e.preventDefault();
+ const entered=$("pin").value;
+
+ if(!validPin(entered)){
+  $("lockMessage").textContent="PIN must contain 4–12 digits.";
+  return;
+ }
+
+ if(!localStorage.getItem(PINKEY)){
+  savePin(entered);
+  enter();
+ }else if(entered===localStorage.getItem(PINKEY)){
+  enter();
+ }else{
+  $("lockMessage").textContent="Incorrect PIN. Try again.";
+  $("pin").value="";
+ }
+});
+
+function enter(){
+ unlocked=true;
+ $("lock").classList.add("hidden");
+ $("app").classList.remove("hidden");
+ $("pin").value="";
+ showPage("home");
+ refresh();
+}
+
+function lock(){
+ unlocked=false;
+ clearURLs();
+ $("viewerContent").replaceChildren();
+ $("viewer").classList.add("hidden");
+ $("app").classList.add("hidden");
+ $("lock").classList.remove("hidden");
+ $("pin").value="";
+}
+
+$("lockButton").onclick=lock;
+
+function showPage(page){
+ if(!unlocked)return;
+ activePage=page;
+
+ ["home","galleryPage","settings"].forEach(id=>{
+  $(id).classList.toggle("hidden",id!==page);
+ });
+
+ document.querySelectorAll("nav button").forEach(b=>{
+  b.classList.toggle("active",b.dataset.page===page);
+ });
+
+ $("add").classList.toggle("hidden",page==="settings");
+
+ if(page==="galleryPage")renderGallery();
+}
+
+document.querySelectorAll("nav button").forEach(b=>{
+ b.onclick=()=>showPage(b.dataset.page);
+});
+
+document.querySelectorAll("[data-filter]").forEach(b=>{
+ b.onclick=()=>{
+  filter=b.dataset.filter;
+  document.querySelectorAll("[data-filter]").forEach(x=>x.classList.toggle("active",x===b));
+  renderGallery();
+ };
+});
+
+$("add").onclick=()=>$("mediaFiles").click();
+
+$("mediaFiles").onchange=async e=>{
+ const files=Array.from(e.target.files||[]);
+ e.target.value="";
+ let count=0;
+
+ for(const file of files){
+  const type=file.type.startsWith("image/")?"image":
+    file.type.startsWith("video/")?"video":null;
+  if(!type)continue;
+
+  try{
+   await addRecord({
+    name:file.name,
+    type,
+    mime:file.type,
+    blob:file,
+    size:file.size,
+    createdAt:Date.now()
+   });
+   count++;
+  }catch(err){
+   console.error(err);
+  }
+ }
+
+ await refresh();
+ toast(count+" file(s) added.");
+};
+
+function makeCard(item){
+ const card=document.createElement("div");
+ card.className="card";
+
+ const preview=document.createElement("div");
+ preview.className="preview";
+
+ if(item.type==="image"){
+  const img=document.createElement("img");
+  img.alt=item.name;
+  img.src=makeURL(item.blob);
+  preview.appendChild(img);
+ }else{
+  const icon=document.createElement("span");
+  icon.className="playicon";
+  icon.textContent="▶️";
+  preview.appendChild(icon);
+ }
+
+ const details=document.createElement("div");
+ details.className="details";
+
+ const name=document.createElement("div");
+ name.className="filename";
+ name.textContent=item.name;
+
+ const actions=document.createElement("div");
+ actions.className="actions";
+
+ const view=document.createElement("button");
+ view.textContent=item.type==="image"?"View":"Play";
+ view.onclick=()=>openViewer(item);
+
+ const del=document.createElement("button");
+ del.className="del";
+ del.textContent="Delete";
+ del.onclick=async()=>{
+  if(!confirm("Delete this file from your vault?"))return;
+  await deleteRecord(item.id);
+  await refresh();
+  toast("File deleted.");
+ };
+
+ actions.append(view,del);
+ details.append(name,actions);
+ card.append(preview,details);
+ return card;
+}
+
+function renderItems(target,items){
+ clearURLs();
+ target.replaceChildren();
+
+ if(!items.length){
+  const empty=document.createElement("div");
+  empty.className="empty";
+  empty.textContent="Nothing here yet. Tap + to add pictures or videos.";
+  target.appendChild(empty);
+  return;
+ }
+
+ items.forEach(item=>target.appendChild(makeCard(item)));
+}
+
+async function renderGallery(){
+ if(!unlocked)return;
+ const query=$("search").value.toLowerCase().trim();
+ const all=await getAll();
+
+ const items=all.filter(x=>(filter==="all"||x.type===filter)&&
+  x.name.toLowerCase().includes(query))
+  .sort((a,b)=>b.createdAt-a.createdAt);
+
+ renderItems($("gallery"),items);
+}
+
+async function refresh(){
+ if(!unlocked)return;
+ const all=await getAll();
+
+ $("total").textContent=all.length;
+ $("pictures").textContent=all.filter(x=>x.type==="image").length;
+ $("videos").textContent=all.filter(x=>x.type==="video").length;
+
+ const recent=all.sort((a,b)=>b.createdAt-a.createdAt).slice(0,4);
+ renderItems($("recent"),recent);
+
+ const size=all.reduce((n,x)=>n+(x.size||0),0);
+ $("storage").textContent=all.length+" files stored. Total media size: "+formatBytes(size);
+
+ if(activePage==="galleryPage")await renderGallery();
+}
+
+function formatBytes(n){
+ if(n<1024)return n+" B";
+ if(n<1024*1024)return (n/1024).toFixed(1)+" KB";
+ if(n<1024*1024*1024)return (n/1048576).toFixed(1)+" MB";
+ return (n/1073741824).toFixed(2)+" GB";
+}
+
+$("search").addEventListener("input",renderGallery);
+
+function openViewer(item){
+ clearURLs();
+ $("viewerName").textContent=item.name;
+ $("viewerContent").replaceChildren();
+
+ const url=makeURL(item.blob);
+ let el;
+
+ if(item.type==="image"){
+  el=document.createElement("img");
+  el.src=url;
+ }else{
+  el=document.createElement("video");
+  el.src=url;
+  el.controls=true;
+  el.playsInline=true;
+ }
+
+ $("viewerContent").appendChild(el);
+ $("viewer").classList.remove("hidden");
+}
+
+function closeViewer(){
+ $("viewerContent").querySelectorAll("video").forEach(v=>v.pause());
+ $("viewerContent").replaceChildren();
+ $("viewer").classList.add("hidden");
+ clearURLs();
+}
+
+$("closeViewer").onclick=closeViewer;
+$("viewer").onclick=e=>{if(e.target===$("viewer"))closeViewer()};
+
+$("changePin").onclick=()=>{
+ const old=$("oldPin").value;
+ const next=$("newPin").value;
+ const confirmPin=$("confirmPin").value;
+
+ if(old!==localStorage.getItem(PINKEY)){
+  toast("Current PIN is incorrect.");
+  return;
+ }
+
+ if(!validPin(next)){
+  toast("New PIN must contain 4–12 digits.");
+  return;
+ }
+
+ if(next!==confirmPin){
+  toast("New PINs do not match.");
+  return;
+ }
+
+ savePin(next);
+ ["oldPin","newPin","confirmPin"].forEach(id=>$(id).value="");
+ toast("PIN changed.");
+};
+
+function blobToDataURL(blob){
+ return new Promise((resolve,reject)=>{
+  const r=new FileReader();
+  r.onload=()=>resolve(r.result);
+  r.onerror=()=>reject(r.error);
+  r.readAsDataURL(blob);
+ });
+}
+
+$("export").onclick=async()=>{
+ if(!confirm("Export an unencrypted backup? Keep it private."))return;
+
+ try{
+  const all=await getAll();
+  const records=[];
+
+  for(const item of all){
+   records.push({
+    name:item.name,type:item.type,mime:item.mime,
+    size:item.size,createdAt:item.createdAt,
+    data:await blobToDataURL(item.blob)
+   });
+  }
+
+  const backup={app:"PrivateVault",version:1,records};
+  const blob=new Blob([JSON.stringify(backup)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;
+  a.download="PrivateVault-backup.json";
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),5000);
+  toast("Backup exported.");
+ }catch(e){
+  toast("Export failed. Try fewer or smaller files.");
+ }
+};
+
+$("restore").onclick=()=>$("backupFile").click();
+
+$("backupFile").onchange=async e=>{
+ const file=e.target.files[0];
+ e.target.value="";
+ if(!file)return;
+
+ if(!confirm("Restoring will replace all current vault media. Continue?"))return;
+
+ try{
+  const backup=JSON.parse(await file.text());
+
+  if(backup.app!=="PrivateVault"||backup.version!==1||!Array.isArray(backup.records)){
+   throw new Error("Unsupported backup");
+  }
+
+  const records=[];
+
+  for(const item of backup.records){
+   if(!item.data||!["image","video"].includes(item.type))throw new Error("Invalid media");
+   const response=await fetch(item.data);
+   const blob=await response.blob();
+
+   records.push({
+    name:item.name,type:item.type,mime:item.mime,
+    size:blob.size,blob,createdAt:item.createdAt||Date.now()
+   });
+  }
+
+  await new Promise((resolve,reject)=>{
+   const tx=database.transaction(STORE,"readwrite");
+   const store=tx.objectStore(STORE);
+   store.clear();
+   records.forEach(r=>store.add(r));
+   tx.oncomplete=resolve;
+   tx.onerror=()=>reject(tx.error);
+   tx.onabort=()=>reject(tx.error);
+  });
+
+  await refresh();
+  toast("Backup restored.");
+ }catch(err){
+  console.error(err);
+  toast("Restore failed. Check the backup file.");
+ }
+};
+
+$("deleteAll").onclick=async()=>{
+ if(prompt('Type DELETE to erase all vault media.')!=="DELETE"){
+  toast("Cancelled.");
+  return;
+ }
+
+ await new Promise((resolve,reject)=>{
+  const tx=database.transaction(STORE,"readwrite");
+  tx.objectStore(STORE).clear();
+  tx.oncomplete=resolve;
+  tx.onerror=()=>reject(tx.error);
+ });
+ await refresh();
+ toast("All media deleted.");
+};
+
+init();
+</script>
+</body>
+</html>
